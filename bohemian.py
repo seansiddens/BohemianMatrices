@@ -248,6 +248,56 @@ def compute_littlewood_roots(degree, outfile):
 
     fd.close()
 
+def beta(im_arr, width, height, real_range, imag_range, centered_at, cmap, samples):
+    mono_coloring = False
+    # Array for tracking # of eigvals at each pixel
+    counts = np.zeros((width, height), dtype=np.uint64)
+
+    # Matrix
+    mat = np.zeros((4, 4), dtype=float)
+
+    for n in tqdm(range(samples)):
+        # Fill matrix with random entries
+        for i in range(len(mat)):
+            for j in range(len(mat[i])):
+                x = random.betavariate(0.01, 0.01)
+                mat[i, j] = 2 * x - 1
+
+        # Compute eigenvalues of the matrix
+        eigvals = np.linalg.eigvals(mat)
+
+        # Convert each eigvenvalue to a point on image
+        for z in eigvals:
+            x, y = complex_to_image(z, width, height, real_range, imag_range, centered_at)
+            # Check if it's in image
+            if (0 <= x < width) and (0 <= y < height):
+                if z.imag != 0:
+                    counts[y, x] += 1
+
+    # Get maximum eigenvalue count in the array
+    max_count = np.max(counts)
+    print("Max count:", max_count)
+
+    # Color image depending on density of eiginvalues for each pixel
+    print("Coloring final image...")
+    for y in tqdm(range(height)):
+        for x in range(width):
+            if counts[y, x] != 0:
+                if mono_coloring is True:
+                    im_arr[y, x] = 255
+                else:
+                    brightness = math.log(counts[y, x]) / math.log(max_count)
+                    gamma = 2.2
+                    brightness = math.pow(brightness, 1/gamma)
+                    rgba = cmap(brightness)
+                    im_arr[y, x, 0] = int(255 * rgba[0])
+                    im_arr[y, x, 1] = int(255 * rgba[1])
+                    im_arr[y, x, 2] = int(255 * rgba[2])
+
+    im = Image.fromarray(im_arr)
+    return im
+
+
 
 if __name__ == "__main__":
     # Size of complex window w/ respect to a center focal point
@@ -256,30 +306,31 @@ if __name__ == "__main__":
     imag_offset = (-1, 1)
     real_range = real_offset[1] - real_offset[0]
     imag_range = imag_offset[1] - imag_offset[0]
-    scale = 48
+    scale = 3
     real_range *= scale
     imag_range *= scale
 
     # Set width and height of image depending on aspect ratio
     aspect_ratio = real_range / imag_range
-    width = 1024 * 4
+    width = 1024
     height = int(width * 1 / aspect_ratio)
 
     # # Initialize image array
     im_arr = np.zeros((height, width, 3), dtype=np.uint8)
 
     # Number of samples we want to take from set of matrices
-    samples = 10000000
+    samples = 100000
 
     # # Initialize color map
-    # cmap = cm.get_cmap("jet")
+    cmap = cm.get_cmap("jet")
     # cmap = cm.get_cmap("viridis")
     # cmap = cm.get_cmap("nipy_spectral")
-    cmap = cm.get_cmap("hot")
+    # cmap = cm.get_cmap("hot")
     
     # im = eigenfish(im_arr, width, height, real_range, imag_range, centered_at)
     # im = littlewood(im_arr, width, height, real_range, imag_range, centered_at, cmap)
-    im = tridiagonal(im_arr, width, height, real_range, imag_range, centered_at, cmap, samples)
+    # im = tridiagonal(im_arr, width, height, real_range, imag_range, centered_at, cmap, samples)
+    im = beta(im_arr, width, height, real_range, imag_range, centered_at, cmap, samples)
 
     print("Saving image...")
     im.save("out.png")
