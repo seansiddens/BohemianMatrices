@@ -7,6 +7,7 @@ from tqdm import tqdm
 from PIL import Image
 from matplotlib import cm
 import matplotlib.pyplot as plt
+from perlin_noise import PerlinNoise
 
 
 # Converts a point on the complex plane to an integer 
@@ -249,20 +250,30 @@ def compute_littlewood_roots(degree, outfile):
     fd.close()
 
 def beta(im_arr, width, height, real_range, imag_range, centered_at, cmap, samples):
+    companion = False
     mono_coloring = False
     # Array for tracking # of eigvals at each pixel
     counts = np.zeros((width, height), dtype=np.uint64)
 
-    # Matrix
     mat = np.zeros((4, 4), dtype=float)
-
     for n in tqdm(range(samples)):
-        # Fill matrix with random entries
-        for i in range(len(mat)):
-            for j in range(len(mat[i])):
+        # Initialize matrix
+        mat = np.zeros((4, 4), dtype=float)
+        if companion is True:
+            # Make companion matrix w/ coefficients from 2x -1
+            for i in range(1, 4):
+                mat[i, i-1] = 1 # Set sub-diagonal to 1's
+            for i in range(4):
+                # Final column entries are 2x - 1
                 x = random.betavariate(0.01, 0.01)
-                mat[i, j] = 2 * x - 1
-
+                mat[i, 3] = 2 * x - 1
+        else:
+            # Fill matrix with random entries in the form 2x - 1
+            for i in range(len(mat)):
+                for j in range(len(mat[i])):
+                    x = random.betavariate(0.01, 0.01)
+                    mat[i, j] = 2 * x - 1
+        
         # Compute eigenvalues of the matrix
         eigvals = np.linalg.eigvals(mat)
 
@@ -297,6 +308,68 @@ def beta(im_arr, width, height, real_range, imag_range, centered_at, cmap, sampl
     im = Image.fromarray(im_arr)
     return im
 
+def companion(width, height, real_range, imag_range, centered_at, cmap, samples):
+    n = 6
+    noise = PerlinNoise()
+    total_frames = 1
+    r_vals = np.linspace(0, 2 * math.pi, total_frames)
+    angles = np.linspace(0, 2 * math.pi, total_frames)
+    alphas = np.geomspace(0.0001, 0.4, 60)
+
+    for frame in range(total_frames):
+        # n = n + frame
+        print("Frame:", str(frame))
+        im_arr = np.zeros((height, width, 3), dtype=np.uint8)
+        mono_coloring = False
+        # Array for tracking # of eigvals at each pixel
+        counts = np.zeros((width, height), dtype=np.uint64)
+        # r = 2 + math.sin(r_vals[frame])
+        mat = np.zeros((n, n))
+        for _ in tqdm(range(samples)):
+            # Initialize matrix
+            mat = np.zeros((n, n))
+            # Make companion matrix w/ coefficients from 2x -1
+            for i in range(1, n):
+                mat[i, i-1] = 1 # Set sub-diagonal to 1's
+            for i in range(n):
+                # Final column entries are 2x - 1
+                x = random.betavariate(alphas[frame], alphas[frame])
+                # x = cmath.rect(x, angles[frame])
+                mat[i, -1] = (2 * x - 1)
+            
+            # Compute eigenvalues of the matrix
+            eigvals = np.linalg.eigvals(mat)
+
+            # Convert each eigvenvalue to a point on image
+            for z in eigvals:
+                x, y = complex_to_image(z, width, height, real_range, imag_range, centered_at)
+                # Check if it's in image
+                if (0 <= x < width) and (0 <= y < height):
+                    if z.imag != 0:
+                        counts[y, x] += 1
+
+        # Get maximum eigenvalue count in the array
+        max_count = np.max(counts)
+        print("Max count:", max_count)
+
+        # Color image depending on density of eiginvalues for each pixel
+        print("Coloring final image...")
+        for y in tqdm(range(height)):
+            for x in range(width):
+                if counts[y, x] != 0:
+                    if mono_coloring is True:
+                        im_arr[y, x] = 255
+                    else:
+                        brightness = math.log(counts[y, x]) / math.log(max_count)
+                        gamma = 2.2
+                        brightness = math.pow(brightness, 1/gamma)
+                        rgba = cmap(brightness)
+                        im_arr[y, x, 0] = int(255 * rgba[0])
+                        im_arr[y, x, 1] = int(255 * rgba[1])
+                        im_arr[y, x, 2] = int(255 * rgba[2])
+
+        im = Image.fromarray(im_arr)
+        im.save("frames/frame" + str(frame) + ".png")
 
 
 if __name__ == "__main__":
@@ -319,19 +392,17 @@ if __name__ == "__main__":
     im_arr = np.zeros((height, width, 3), dtype=np.uint8)
 
     # Number of samples we want to take from set of matrices
-    samples = 100000
+    samples = 250000
 
     # # Initialize color map
     cmap = cm.get_cmap("jet")
     # cmap = cm.get_cmap("viridis")
     # cmap = cm.get_cmap("nipy_spectral")
     # cmap = cm.get_cmap("hot")
-    
+
     # im = eigenfish(im_arr, width, height, real_range, imag_range, centered_at)
     # im = littlewood(im_arr, width, height, real_range, imag_range, centered_at, cmap)
     # im = tridiagonal(im_arr, width, height, real_range, imag_range, centered_at, cmap, samples)
-    im = beta(im_arr, width, height, real_range, imag_range, centered_at, cmap, samples)
+    # im = beta(im_arr, width, height, real_range, imag_range, centered_at, cmap, samples)
+    companion(width, height, real_range, imag_range, centered_at, cmap, samples)
 
-    print("Saving image...")
-    im.save("out.png")
-    print("Done!")
