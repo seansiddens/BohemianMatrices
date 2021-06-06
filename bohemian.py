@@ -311,10 +311,10 @@ def beta(im_arr, width, height, real_range, imag_range, centered_at, cmap, sampl
 def companion(width, height, real_range, imag_range, centered_at, cmap, samples):
     n = 6
     noise = PerlinNoise()
-    total_frames = 1
+    total_frames = 60
     r_vals = np.linspace(0, 2 * math.pi, total_frames)
     angles = np.linspace(0, 2 * math.pi, total_frames)
-    alphas = np.geomspace(0.0001, 0.4, 60)
+    alphas = np.geomspace(0.0001, 0.4, total_frames)
 
     for frame in range(total_frames):
         # n = n + frame
@@ -324,17 +324,16 @@ def companion(width, height, real_range, imag_range, centered_at, cmap, samples)
         # Array for tracking # of eigvals at each pixel
         counts = np.zeros((width, height), dtype=np.uint64)
         # r = 2 + math.sin(r_vals[frame])
-        mat = np.zeros((n, n))
         for _ in tqdm(range(samples)):
             # Initialize matrix
-            mat = np.zeros((n, n))
+            mat = np.zeros((n, n), dtype=complex)
             # Make companion matrix w/ coefficients from 2x -1
             for i in range(1, n):
                 mat[i, i-1] = 1 # Set sub-diagonal to 1's
             for i in range(n):
                 # Final column entries are 2x - 1
-                x = random.betavariate(alphas[frame], alphas[frame])
-                # x = cmath.rect(x, angles[frame])
+                x = random.betavariate(0.01, 0.01)
+                x = cmath.rect(x, angles[frame])
                 mat[i, -1] = (2 * x - 1)
             
             # Compute eigenvalues of the matrix
@@ -345,7 +344,7 @@ def companion(width, height, real_range, imag_range, centered_at, cmap, samples)
                 x, y = complex_to_image(z, width, height, real_range, imag_range, centered_at)
                 # Check if it's in image
                 if (0 <= x < width) and (0 <= y < height):
-                    if z.imag != 0:
+                    if abs(z.imag) > 0.001:
                         counts[y, x] += 1
 
         # Get maximum eigenvalue count in the array
@@ -385,14 +384,14 @@ if __name__ == "__main__":
 
     # Set width and height of image depending on aspect ratio
     aspect_ratio = real_range / imag_range
-    width = 1024
+    width = 1024 * 3
     height = int(width * 1 / aspect_ratio)
 
     # # Initialize image array
     im_arr = np.zeros((height, width, 3), dtype=np.uint8)
 
     # Number of samples we want to take from set of matrices
-    samples = 250000
+    samples = 1000000
 
     # # Initialize color map
     cmap = cm.get_cmap("jet")
