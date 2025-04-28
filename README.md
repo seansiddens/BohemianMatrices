@@ -1,6 +1,6 @@
 A script for visualizing the distributions of eigenvalues. 
 
-Inspired by [http://www.bohemianmatrices.com/]()
+Inspired by [http://www.bohemianmatrices.com/](http://www.bohemianmatrices.com/)
 
 ## Dependencies
 - numpy
